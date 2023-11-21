@@ -106,7 +106,6 @@ def get_filing_info(element):
     html_link = soup.find('a', string='[html]')
     full_url = f"[link](https://www.sec.gov{html_link.get('href')})"
 
-    # return f"||{company}|{date_time}|{full_url}||"
     return f"|{company}|{date_time}|{full_url}|\n"
 
 
@@ -157,7 +156,6 @@ def get_8ks():
         # Iterate through each <tr> element
         for tr_element in tr_elements_with_item:
             relevant_filings += get_filing_info(tr_element)
-            # form_8ks_with_item.append(get_filing_info(tr_element))
 
     return relevant_filings
 
