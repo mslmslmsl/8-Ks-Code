@@ -177,13 +177,13 @@ def get_exisiting_entries():
             return bottom_half, current_sha
 
         logging.info("%s doesn't exist", FILE_PATH)
-        return None
+        return None, None
 
     except requests.exceptions.RequestException as exception:
         logging.error(
             "An error occurred during the request: %s", str(exception)
         )
-        return None
+        return None, None
 
 
 def combine_lists(new_entries, old_entries):
