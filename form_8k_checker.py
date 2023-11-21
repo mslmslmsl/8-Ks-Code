@@ -201,14 +201,6 @@ def combine_lists(new_entries, old_entries):
     return final_list
 
 
-def tuple_to_string(entries_tuple):
-    """Convert tuple to string."""
-    new_content = ''
-    for row in entries_tuple:
-        new_content += f"{'|'.join(str(cell) for cell in row)}\n"
-    return new_content
-
-
 def main():
     """Main function to check and update Form 8-K entries on GitHub."""
 
