@@ -9,14 +9,16 @@ import base64
 from bs4 import BeautifulSoup
 import requests
 
-ITEM = "1.05"
+TESTING = False
+
+ITEM = "5.02" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError(
         "GitHub token not found. Set the GITHUB_TOKEN env variable."
     )
 REPO_OWNER = "mslmslmsl"
-REPO_NAME = "8-Ks"
+REPO_NAME = "TEST" if TESTING else "8-Ks"
 FILE_PATH = "8-Ks.md"
 
 GITHUB_API_URL = (
@@ -54,6 +56,7 @@ def get_sec_url(index):
 
 def update_github_file(entries_to_file, current_sha=None):
     """Update the GitHub file with the latest Form 8-K entries."""
+    logging.info("Updating %s with filings.", FILE_PATH)
     full_content = HEADING
     full_content += entries_to_file if entries_to_file else ''
 
@@ -103,18 +106,20 @@ def get_filing_info(element):
     html_link = soup.find('a', string='[html]')
     full_url = f"[link](https://www.sec.gov{html_link.get('href')})"
 
-    return ('', company, date_time, full_url, '')
+    # return f"||{company}|{date_time}|{full_url}||"
+    return f"|{company}|{date_time}|{full_url}|\n"
 
 
 def get_8ks():
     """Retrieve Form 8-K filings from the SEC's 'latest filings' page."""
+    logging.info("ACcessing the SEC 'latest filings' page.")
     getting_data = True
     index = 0
-    form_8ks_with_item = []
+    relevant_filings = ''
 
     while getting_data:
         current_url = get_sec_url(index)
-        logging.info("Checking page %s", int(index/100)+1)
+        logging.info("Checking 'latest filings' page %s.", int(index/100)+1)
 
         with requests.Session() as session:
             response = session.get(current_url, headers=SEC_HEADERS)
@@ -151,13 +156,15 @@ def get_8ks():
 
         # Iterate through each <tr> element
         for tr_element in tr_elements_with_item:
-            form_8ks_with_item.append(get_filing_info(tr_element))
+            relevant_filings += get_filing_info(tr_element)
+            # form_8ks_with_item.append(get_filing_info(tr_element))
 
-    return form_8ks_with_item
+    return relevant_filings
 
 
 def get_exisiting_entries():
     """Retrieve existing Form 8-K entries from the GitHub repo."""
+    logging.info("Retrieving any existing data from %s.", FILE_PATH)
     try:
         response = requests.get(
             GITHUB_API_URL, headers=GITHUB_HEADERS, timeout=10
@@ -166,17 +173,9 @@ def get_exisiting_entries():
         if response.status_code == 200:
             current_sha = response.headers.get('ETag')
             current_content = response.text.replace('\r', '')
-
-            # Parse the current content into a list of lists
-            rows = [
-                tuple(row.split("|"))
-                for row in current_content.strip().split("\n")
-            ]
-
-            # Get just the table entries
-            bottom_half = rows[5:]
-
-            logging.info("Extracted existing data from %s", FILE_PATH)
+            current_content_as_strings = current_content.splitlines()
+            bottom_half = current_content_as_strings[5:]
+            logging.info("Extracted existing data from %s.", FILE_PATH)
             return bottom_half, current_sha
 
         logging.info("%s doesn't exist", FILE_PATH)
@@ -189,15 +188,19 @@ def get_exisiting_entries():
         return None
 
 
-def filter_new_entries(new_list, old_list):
-    """Combine new and existing 8-K entries."""
-    # Keep only new items that are newer than the most recent item in old
-    new_items = [item for item in new_list if item[2] > old_list[0][2]]
+def combine_lists(new_entries, old_entries):
+    """Combine new filings with existing filings"""
+    # Extract timestamps from the lists
+    final_list = []
+    cutoff_timestamp = old_entries[0].split('|')[2]
 
-    # Combine new_items with old to preserve order
-    items_to_save = new_items + old_list
-
-    return items_to_save
+    for entry in new_entries:
+        if entry.split('|')[2] > cutoff_timestamp:
+            final_list.append(entry)
+        else:
+            break
+    final_list += old_entries
+    return final_list
 
 
 def tuple_to_string(entries_tuple):
@@ -210,22 +213,25 @@ def tuple_to_string(entries_tuple):
 
 def main():
     """Main function to check and update Form 8-K entries on GitHub."""
-    current_sha = ''
-    new_entries = get_8ks()
-    existing_entries = []
-    existing_entries_result = get_exisiting_entries()
-    if existing_entries_result:
-        existing_entries, current_sha = existing_entries_result
 
-    entries_to_save_tuple = (
-        filter_new_entries(new_entries, existing_entries)
-        if new_entries and existing_entries
-        else new_entries or existing_entries or []
-    )
+    # Get new filings
+    new_entries_single_string = get_8ks()
+    new_entries_list = new_entries_single_string.splitlines()
 
-    entries_to_save_string = tuple_to_string(entries_to_save_tuple)
+    # Get existing filings
+    existing_entries_list, current_sha = get_exisiting_entries()
 
-    update_github_file(entries_to_save_string, current_sha)
+    # Create a final list of filings (combining old and new if needed)
+    logging.info("Creating final list of entries.")
+    if existing_entries_list:
+        updated_string_of_entries = '\n'.join(
+            combine_lists(new_entries_list, existing_entries_list)
+        )
+    else:
+        updated_string_of_entries = '\n'.join(new_entries_list)
+
+    # Update the file with the final list of filings
+    update_github_file(updated_string_of_entries, current_sha or '')
 
 
 if __name__ == "__main__":
