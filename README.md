@@ -26,7 +26,7 @@ Before using the script, ensure you have the necessary dependencies installed:
 
 ## Configuration
 
-    TESTING: I use this to test the script with a more common Form 8-K item and a different repo. Update these fields (or remove completely) depending on your needs.
+    TESTING: Used to test the script (uses a more common ITEM and private repo).
     
     ITEM: Specify the relevant item to filter Form 8-K filings.
 
