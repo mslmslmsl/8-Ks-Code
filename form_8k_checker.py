@@ -9,18 +9,15 @@ import base64
 from bs4 import BeautifulSoup
 import requests
 
-TESTING = False
-
+# Constants
+TESTING = True
 ITEM = "5.02" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
-    raise ValueError(
-        "GitHub token not found. Set the GITHUB_TOKEN env variable."
-    )
+    raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
 REPO_OWNER = "mslmslmsl"
 REPO_NAME = "TEST" if TESTING else "8-Ks"
 FILE_PATH = "8-Ks.md"
-
 GITHUB_API_URL = (
     f"https://api.github.com/repos/{REPO_OWNER}/"
     f"{REPO_NAME}/contents/{FILE_PATH}"
@@ -42,11 +39,12 @@ SEC_HEADERS = {
     )
 }
 
+# Show me the logs
 logging.basicConfig(level=logging.INFO)
 
 
-def get_sec_url(index):
-    """Return the relevant items on the SEC's 'latest filings' page"""
+def get_sec_url(index: int) -> str:
+    """Return the URL for the relevant page of the 'latest filings' site"""
     return (
         "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent"
         "&datea=&dateb=&company=&type=8-k&SIC=&State=&Country=&CIK=&owner="
@@ -54,23 +52,26 @@ def get_sec_url(index):
     )
 
 
-def update_github_file(entries_to_file, current_sha=None):
+def update_github_file(entries_to_file: str, current_sha: str) -> None:
     """Update the GitHub file with the latest Form 8-K entries."""
     logging.info("Updating %s with filings.", FILE_PATH)
+
+    # Set the content of the file to HEADING plus the entries
     full_content = HEADING
     full_content += entries_to_file if entries_to_file else ''
 
+    # Upload to GitHub
     message = f"Update {FILE_PATH}" if current_sha else f"Create {FILE_PATH}"
     payload = {
         "message": message,
         "content": base64.b64encode(full_content.encode()).decode('utf-8'),
         "sha": current_sha.strip('"') if current_sha else None
     }
-
     response = requests.put(
         GITHUB_API_URL, headers=GITHUB_HEADERS, json=payload, timeout=10
     )
 
+    # Log the response
     if response.status_code == 200:
         logging.info("Updated %s successfully.", FILE_PATH)
     elif response.status_code == 201:
@@ -84,15 +85,18 @@ def update_github_file(entries_to_file, current_sha=None):
         )
 
 
-def get_filing_info(element):
+def get_filing_info(element: tuple) -> str:
     """Extract information from Form 8-K filing HTML element."""
     soup = BeautifulSoup(str(element[0]), 'html.parser')
 
+    # Get the company name (assume that an <a> tag always exists in element[0])
     company = soup.find('a').get_text()
     company = re.sub(r'\([^)]*\) \(Filer\)\s*', '', company).strip()
 
     soup = BeautifulSoup(str(element[1]), 'html.parser')
 
+    # Get the timestamp (and assume that a <td> tag with a <br> tag always
+    # exists in element[1])
     date_time = (
         soup.find(
             lambda tag: tag.name == 'td' and tag.find('br'),
@@ -103,27 +107,32 @@ def get_filing_info(element):
     date_time_obj = datetime.strptime(date_time, '%Y-%m-%d%H:%M:%S')
     date_time = date_time_obj.strftime("%Y-%m-%d %H:%M:%S")
 
+    # Get the URL to the actual form filing
     html_link = soup.find('a', string='[html]')
     full_url = f"[link](https://www.sec.gov{html_link.get('href')})"
 
+    # Return a string with the data
     return f"|{company}|{date_time}|{full_url}|\n"
 
 
-def get_8ks():
+def get_8ks() -> str:
     """Retrieve Form 8-K filings from the SEC's 'latest filings' page."""
-    logging.info("ACcessing the SEC 'latest filings' page.")
+    logging.info("Accessing the SEC 'latest filings' page.")
+
     getting_data = True
     index = 0
     relevant_filings = ''
 
+    # Loop through each page of the SEC 'latest filings' site
     while getting_data:
-        current_url = get_sec_url(index)
-        logging.info("Checking 'latest filings' page %s.", int(index/100)+1)
 
+        # Request the page
+        logging.info("Checking 'latest filings' page %s.", int(index/100)+1)
+        current_url = get_sec_url(index)
         with requests.Session() as session:
             response = session.get(current_url, headers=SEC_HEADERS)
 
-        # Check if the request was successful
+        # If the page doesn't load, throw an error and return
         if response.status_code != 200:
             logging.error(
                 "Failed to load SEC data (code: %s) for URL: %s",
@@ -147,32 +156,42 @@ def get_8ks():
                 if ITEM in text:
                     tr_elements_with_item.append((prev_tr, current_tr))
 
-        # Check if we're on the last available page
+        # Break out of the loop if we're on the last page (i.e., <100 entries)
         if entries_on_current_page < 100:
             getting_data = False
         else:
             index += 100
 
-        # Iterate through each <tr> element
+        # For each entry saved, get the relevant info (name, timestamp, link)
         for tr_element in tr_elements_with_item:
             relevant_filings += get_filing_info(tr_element)
 
     return relevant_filings
 
 
-def get_exisiting_entries():
+def get_exisiting_entries() -> tuple:
     """Retrieve existing Form 8-K entries from the GitHub repo."""
     logging.info("Retrieving any existing data from %s.", FILE_PATH)
+
+    # Pull data from GitHub
     try:
         response = requests.get(
             GITHUB_API_URL, headers=GITHUB_HEADERS, timeout=10
         )
 
+        # If we succeed, then process the existing entries
         if response.status_code == 200:
+
+            # Get the sha of the response (which has to be sent back)
             current_sha = response.headers.get('ETag')
+
+            # Get lines from the file and create a list of strings
             current_content = response.text.replace('\r', '')
             current_content_as_strings = current_content.splitlines()
+
+            # Isolate the form 8-K lines
             bottom_half = current_content_as_strings[5:]
+
             logging.info("Extracted existing data from %s.", FILE_PATH)
             return bottom_half, current_sha
 
@@ -186,42 +205,55 @@ def get_exisiting_entries():
         return None, None
 
 
-def combine_lists(new_entries, old_entries):
-    """Combine new filings with existing filings"""
-    # Extract timestamps from the lists
+def combine_lists(new_entries: list, old_entries: list) -> list:
+    """Combine the list of new filings with the list of existing filings"""
+
+    # Define variable to store the final list of filings
     final_list = []
+
+    # Get the timestamp for the most recent existing entry
     cutoff_timestamp = old_entries[0].split('|')[2]
 
+    # Include all new entries if later than the most recent existing entry
     for entry in new_entries:
         if entry.split('|')[2] > cutoff_timestamp:
             final_list.append(entry)
         else:
             break
+
+    # Finally, add all the old entries to the list
     final_list += old_entries
+
+    # Return the full list of entries to be saved
     return final_list
 
 
 def main():
-    """Main function to check and update Form 8-K entries on GitHub."""
+    """Main function to check and update the Form 8-K entries on GitHub."""
 
-    # Get new filings
-    new_entries_single_string = get_8ks()
-    new_entries_list = new_entries_single_string.splitlines()
+    # Get new filings as a string
+    new_entries_string = get_8ks()
 
-    # Get existing filings
+    # Turn the new entries into a list of strings (one filing per string)
+    new_entries_list = new_entries_string.splitlines()
+
+    # Get existing filings as a list of strings (one filing per string)
     existing_entries_list, current_sha = get_exisiting_entries()
 
-    # Create a final list of filings (combining old and new if needed)
+    # Here, do two things: (1) get a final list of filings that need to be
+    # stored on GitHub; and (2) turn the list back into a giant string (filings
+    # separated with newlines)
     logging.info("Creating final list of entries.")
     if existing_entries_list:
-        updated_string_of_entries = '\n'.join(
+        all_entries_string = '\n'.join(
             combine_lists(new_entries_list, existing_entries_list)
         )
     else:
-        updated_string_of_entries = '\n'.join(new_entries_list)
+        all_entries_string = '\n'.join(new_entries_list)
 
-    # Update the file with the final list of filings
-    update_github_file(updated_string_of_entries, current_sha or '')
+    # Finally, update the file with the string of all filings
+    # If `current_sha` exists, we are modifying the file (not creating it)
+    update_github_file(all_entries_string, current_sha or '')
 
 
 if __name__ == "__main__":
