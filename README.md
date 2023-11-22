@@ -26,14 +26,28 @@ Before using the script, ensure you have the necessary dependencies installed:
 
 ## Configuration
 
-    TESTING: Used to test the script (uses a more common ITEM and private repo).
-    
-    ITEM: Specify the relevant item to filter Form 8-K filings.
+Before running the script, you'll need to configure the following settings:
 
-    GITHUB_TOKEN: Ensure you have a valid GitHub token for repository access.
+- **TESTING:**
+  - This option is used for testing the script with a more common item and a private repository.
 
-    REPO_OWNER: Set the GitHub repository owner.
+- **ITEM:**
+  - Specify the relevant item to filter Form 8-K filings. This ensures that the script extracts filings containing the specified item.
 
-    REPO_NAME: Set the GitHub repository name.
+- **GITHUB_TOKEN:**
+  - Since the script saves the output to a file in a GitHub repo, you'll need to configure the repo information (see below) and include a GitHub token.
 
-    FILE_PATH: Specify the file path within the repository where the Form 8-K list will be stored.
+- **REPO_OWNER:**
+  - Set the repo owner that owns the repo where the Form 8-K list will be stored.
+
+- **REPO_NAME:**
+  - Set the name of the repo where the Form 8-K list will be stored.
+
+- **FILE_PATH:**
+  - Specify the file path within the repo where the Form 8-K list will be stored.
+
+If you plan to keep the script and output file in the same repo, please review the next section re: fetching changes to avoid conflicts when updating or running the script.
+
+## Important: Regularly Fetch Changes
+
+If you plan to keep the script and the output file in the same repo, then in order to prevent conflicts, make sure to always check for updates and regularly fetch changes from the remote repo (e.g., by using `git pull`). Failure to do so may result in conflicts if the script updates the output file in your remote repo.
