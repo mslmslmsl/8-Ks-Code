@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 import requests
 
 # Constants
-TESTING = True
+TESTING = False
 ITEM = "5.02" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
