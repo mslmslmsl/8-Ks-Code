@@ -9,7 +9,7 @@ The SEC Form 8-K Indexer is a Python script that automates the extraction of For
 The "Latest Filings" page on the SEC website displays forms filed with the SEC in the **past three business days**. To ensure that the script reviews all filings, it's recommended to run the script at least **twice a week**. For example:
 
 - Between **Wednesday at 6 PM ET and Thursday at 6 AM ET** to scan filings submitted on Monday, Tuesday, or Wednesday.
-- Between **Friday at 6 PM ET and Monday at 6 AM ET** to scan filings submitted on Thursday or Friday.
+- Between **Friday at 6 PM ET and Tuesday at 6 AM ET** to scan filings submitted on Thursday or Friday.
 
 ## Prerequisites and Configuration
 
