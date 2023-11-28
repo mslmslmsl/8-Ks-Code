@@ -187,7 +187,7 @@ def get_8ks(last_checked_datetime_string: str) -> str:
 
             # Break loop if we have already reviewed the page
             if last_checked_datetime_string >= newest_filing_on_page:
-                logging.info("Done extracting data from the SEC pages.")
+                logging.info("Done extracting new data from the SEC pages.")
                 break
 
             # Break loop if on the last page (no 'next page' button)
