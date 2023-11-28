@@ -140,7 +140,7 @@ def get_8ks(last_checked_datetime_string: str) -> str:
         # Request the page
         try:
             logging.info(
-                "Checking 'latest filings' page %s.",
+                "Extracting data from page %s.",
                 int((index+FILINGS_PER_PAGE)/FILINGS_PER_PAGE)
             )
             page_url = get_sec_url(index)
@@ -187,7 +187,7 @@ def get_8ks(last_checked_datetime_string: str) -> str:
 
             # Break loop if we have already reviewed the page
             if last_checked_datetime_string >= newest_filing_on_page:
-                logging.info("Done reviewing new filings.")
+                logging.info("Done extracting data from the SEC pages.")
                 break
 
             # Break loop if on the last page (no 'next page' button)
@@ -298,7 +298,7 @@ def main():
         get_exisiting_data()
 
     # Get new filings as a string
-    logging.info("Retrieving new filings from the SEC site.")
+    logging.info("Attempting to access the SEC 'latest filings' page.")
     new_entries_string = get_8ks(latest_checked_datetime_string)
 
     # Turn the new entries into a list of strings (one filing per string)
