@@ -11,7 +11,7 @@ import requests
 
 # Constants
 TESTING = False
-ITEM = "5.02" if TESTING else "1.05"
+ITEM = "5.0f2" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
@@ -165,7 +165,11 @@ def get_8ks(latest_entry_date: str) -> str:
             # For each entry, get the relevant info (name, timestamp, link)
             for tr_element in tr_elements_with_item:
                 relevant_filings += get_filing_info(tr_element)
-            last_match = DATE_PATTERN.findall(relevant_filings)[-1]
+            last_match = (
+                DATE_PATTERN.findall(relevant_filings)[-1]
+                if relevant_filings else
+                '1970-01-01 00:00:00'
+            )
 
             # Break out of loop if we already have the entries
             if last_match < latest_entry_date:
@@ -221,7 +225,11 @@ def get_exisiting_entries() -> tuple:
 
             # Get the date of the newest filing on the list -- this is to avoid
             # analyzing SEC pages that we've already reviewed
-            latest_entry_date = DATE_PATTERN.search(bottom_half[0]).group()
+            latest_entry_date = (
+                DATE_PATTERN.search(bottom_half[0]).group()
+                if bottom_half
+                else '1970-01-01 00:00:00'
+            )
 
             return bottom_half, current_sha, latest_entry_date
 
