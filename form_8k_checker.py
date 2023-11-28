@@ -40,6 +40,8 @@ SEC_HEADERS = {
         '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     )
 }
+DATE_PATTERN = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
+
 
 # Show me the logs
 logging.basicConfig(level=logging.INFO)
@@ -116,19 +118,20 @@ def get_filing_info(element: tuple) -> str:
     return f"|{company}|{date_time}|{full_url}|\n"
 
 
-def get_8ks() -> str:
+def get_8ks(latest_entry_date: str) -> str:
     """Retrieve Form 8-K filings from the SEC's 'latest filings' page."""
     index = 0
     relevant_filings = ''
-    page = 0
 
     # Loop through each page of the SEC 'latest filings' site
     while True:
 
         # Request the page
         try:
-            page += 1
-            logging.info("Checking 'latest filings' page %s.", page)
+            logging.info(
+                "Checking 'latest filings' page %s.",
+                int((index+FILINGS_PER_PAGE)/FILINGS_PER_PAGE)
+            )
             page_url = get_sec_url(index)
             with requests.Session() as session:
                 response = session.get(
@@ -140,7 +143,7 @@ def get_8ks() -> str:
             # If the page doesn't load, throw an error and return
             if response.status_code != 200:
                 logging.error(
-                    "Failed to load SEC data (code: %s) for URL: %s",
+                    "Failed to load SEC data (code: %s) for URL: %s.",
                     response.status_code,
                     page_url
                 )
@@ -148,25 +151,30 @@ def get_8ks() -> str:
 
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            # Find all <tr> elements, which each is a filing row
+            # Find all <tr> elements, each of which is a filing
             tr_elements = soup.find_all('tr')
 
-            # If we find the item, save the row and the prior one
-            entries_on_current_page = 0
+            # If we find an item, keep elements with data
             tr_elements_with_item = []
             for prev_tr, current_tr in zip(tr_elements, tr_elements[1:]):
                 text = current_tr.get_text()
-                if "Current report" in text:
-                    entries_on_current_page += 1
-                    if ITEM in text:
-                        tr_elements_with_item.append((prev_tr, current_tr))
+                # Grab the <tr> with item #s
+                if "Current report" in text and ITEM in text:
+                    tr_elements_with_item.append((prev_tr, current_tr))
 
             # For each entry, get the relevant info (name, timestamp, link)
             for tr_element in tr_elements_with_item:
                 relevant_filings += get_filing_info(tr_element)
+            last_match = DATE_PATTERN.findall(relevant_filings)[-1]
 
-            # Break out of the loop if on the last page (i.e., no next page)
+            # Break out of loop if we already have the entries
+            if last_match < latest_entry_date:
+                logging.info("No more new filings to analyze.")
+                break
+
+            # Break out of the loop if on the last page (no 'next page' button)
             if not soup.find('input', {'value': f'Next {FILINGS_PER_PAGE}'}):
+                logging.info("No more filings to analyze.")
                 break
 
             # Update index to get the next page of 8-Ks
@@ -211,16 +219,20 @@ def get_exisiting_entries() -> tuple:
             # Isolate the form 8-K lines
             bottom_half = current_content_as_strings[HEADING.count('\n'):]
 
-            return bottom_half, current_sha
+            # Get the date of the newest filing on the list -- this is to avoid
+            # analyzing SEC pages that we've already reviewed
+            latest_entry_date = DATE_PATTERN.search(bottom_half[0]).group()
+
+            return bottom_half, current_sha, latest_entry_date
 
         logging.info("%s doesn't exist", FILE_PATH)
-        return None, None
+        return None, None, '1970-01-01 00:00:00'
 
     except requests.exceptions.RequestException as exception:
         logging.error(
             "An error occurred during the request: %s", str(exception)
         )
-        return None, None
+        return None, None, '1970-01-01 00:00:00'
 
 
 def get_final_string(new_entries: list, old_entries: list) -> str:
@@ -249,19 +261,20 @@ def get_final_string(new_entries: list, old_entries: list) -> str:
 def main():
     """Main function to check and update the Form 8-K entries on GitHub."""
 
+    # Get existing filings as a list of strings (one filing per string)
+    # If there are existing entries, get the sha (needed to update a file)
+    logging.info("Retrieving existing SEC filings from %s.", FILE_PATH)
+    existing_entries_list, current_sha, latest_entry_date = \
+        get_exisiting_entries()
+    logging.info("Done retrieving existing SEC filings from %s.\n", FILE_PATH)
+
     # Get new filings as a string
     logging.info("Retrieving new SEC filings.")
-    new_entries_string = get_8ks()
+    new_entries_string = get_8ks(latest_entry_date)
     logging.info("Done retrieving new SEC filings.\n")
 
     # Turn the new entries into a list of strings (one filing per string)
     new_entries_list = new_entries_string.splitlines()
-
-    # Get existing filings as a list of strings (one filing per string)
-    # If there are existing entries, get the sha (needed fto update a file)
-    logging.info("Retrieving existing SEC filings from %s.", FILE_PATH)
-    existing_entries_list, current_sha = get_exisiting_entries()
-    logging.info("Done retrieving existing SEC filings from %s.\n", FILE_PATH)
 
     # Get the final string to be saved
     logging.info("Creating final list of filings.")
