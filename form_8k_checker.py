@@ -11,7 +11,7 @@ import requests
 
 # Constants
 TESTING = False
-ITEM = "5.0f2" if TESTING else "1.05"
+ITEM = "5.02" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
@@ -118,7 +118,20 @@ def get_filing_info(element: tuple) -> str:
     return f"|{company}|{date_time}|{full_url}|\n"
 
 
-def get_8ks(latest_entry_date: str) -> str:
+def get_newest_timestamp(text: str):
+    """Return the timestamp fo the first filing on the page"""
+
+    pattern = re.compile(r'\d{4}-\d{2}-\d{2}\d{2}:\d{2}:\d{2}')
+    ugly_newest_on_page_string = pattern.findall(text)[0]
+    newest_on_page_obj = datetime.strptime(
+        ugly_newest_on_page_string,
+        "%Y-%m-%d%H:%M:%S"
+    )
+    newest_on_page_string = newest_on_page_obj.strftime("%Y-%m-%d %H:%M:%S")
+    return newest_on_page_string
+
+
+def get_8ks(last_checked_datetime_string: str) -> str:
     """Retrieve Form 8-K filings from the SEC's 'latest filings' page."""
     index = 0
     relevant_filings = ''
@@ -154,31 +167,36 @@ def get_8ks(latest_entry_date: str) -> str:
             # Find all <tr> elements, each of which is a filing
             tr_elements = soup.find_all('tr')
 
-            # If we find an item, keep elements with data
+            newest_filing_on_page = ''
             tr_elements_with_item = []
+
+            # Loop through all the rows on the page
             for prev_tr, current_tr in zip(tr_elements, tr_elements[1:]):
                 text = current_tr.get_text()
-                # Grab the <tr> with item #s
-                if "Current report" in text and ITEM in text:
-                    tr_elements_with_item.append((prev_tr, current_tr))
 
-            # For each entry, get the relevant info (name, timestamp, link)
+                # Do stuff if we find a filing row (has "Current report")
+                if "Current report" in text:
+                    # Save the timestamp for the first filing on the pae
+                    if not newest_filing_on_page:
+                        newest_filing_on_page = get_newest_timestamp(text)
+                    # If the filing has our item, save it for processing
+                    if ITEM in text:
+                        tr_elements_with_item.append((prev_tr, current_tr))
+
+            # For each filin wiht our item, extract co name, timestamp, link
             for tr_element in tr_elements_with_item:
                 relevant_filings += get_filing_info(tr_element)
-            last_match = (
-                DATE_PATTERN.findall(relevant_filings)[-1]
-                if relevant_filings else
-                '1970-01-01 00:00:00'
-            )
 
-            # Break out of loop if we already have the entries
-            if last_match < latest_entry_date:
-                logging.info("No more new filings to analyze.")
+            # Break loop if we have already reviewed the page
+            if last_checked_datetime_string >= newest_filing_on_page:
+                logging.info("Done reviewing new filings.")
                 break
 
-            # Break out of the loop if on the last page (no 'next page' button)
+            # Break loop if on the last page (no 'next page' button)
             if not soup.find('input', {'value': f'Next {FILINGS_PER_PAGE}'}):
-                logging.info("No more filings to analyze.")
+                logging.info(
+                    "We are on the last page, so no more filings to analyze."
+                )
                 break
 
             # Update index to get the next page of 8-Ks
@@ -195,13 +213,13 @@ def get_8ks(latest_entry_date: str) -> str:
         except requests.RequestException as e:
             # Log other request exceptions if needed
             logging.warning(
-                "Request to %s encountered an exception: %s", page_url, e
+                "Request to %s encountered an exception: %s.", page_url, e
             )
 
     return relevant_filings
 
 
-def get_exisiting_entries() -> tuple:
+def get_exisiting_data() -> tuple:
     """Retrieve existing Form 8-K entries from the GitHub repo."""
 
     # Pull data from GitHub
@@ -223,17 +241,19 @@ def get_exisiting_entries() -> tuple:
             # Isolate the form 8-K lines
             bottom_half = current_content_as_strings[HEADING.count('\n'):]
 
-            # Get the date of the newest filing on the list -- this is to avoid
+            # Get the datetime of the last check -- this is to avoid
             # analyzing SEC pages that we've already reviewed
-            latest_entry_date = (
-                DATE_PATTERN.search(bottom_half[0]).group()
-                if bottom_half
-                else '1970-01-01 00:00:00'
-            )
+            if current_content_as_strings:
+                last_checked = re.search(
+                    r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',
+                    current_content_as_strings[1]
+                ).group()
+            else:
+                last_checked = '1970-01-01 00:00:00'
 
-            return bottom_half, current_sha, latest_entry_date
+            return bottom_half, current_sha, last_checked
 
-        logging.info("%s doesn't exist", FILE_PATH)
+        logging.info("%s doesn't exist, so creating it.", FILE_PATH)
         return None, None, '1970-01-01 00:00:00'
 
     except requests.exceptions.RequestException as exception:
@@ -271,26 +291,27 @@ def main():
 
     # Get existing filings as a list of strings (one filing per string)
     # If there are existing entries, get the sha (needed to update a file)
-    logging.info("Retrieving existing SEC filings from %s.", FILE_PATH)
-    existing_entries_list, current_sha, latest_entry_date = \
-        get_exisiting_entries()
-    logging.info("Done retrieving existing SEC filings from %s.\n", FILE_PATH)
+    logging.info(
+        "Retrieving existing data from %s/%s.",
+        REPO_NAME,
+        FILE_PATH
+    )
+    existing_entries_list, current_sha, latest_checked_datetime_string = \
+        get_exisiting_data()
 
     # Get new filings as a string
-    logging.info("Retrieving new SEC filings.")
-    new_entries_string = get_8ks(latest_entry_date)
-    logging.info("Done retrieving new SEC filings.\n")
+    logging.info("Retrieving new filings from the SEC site.")
+    new_entries_string = get_8ks(latest_checked_datetime_string)
 
     # Turn the new entries into a list of strings (one filing per string)
     new_entries_list = new_entries_string.splitlines()
 
     # Get the final string to be saved
-    logging.info("Creating final list of filings.")
+    logging.info("Creating final list of filings to save.")
     all_entries_string = get_final_string(
         new_entries_list,
         existing_entries_list
     )
-    logging.info("Done creating final list of filings.\n")
 
     # Save the filings to GitHub (by either creating or updating the file)
     logging.info("Saving new filings to %s.", FILE_PATH)
