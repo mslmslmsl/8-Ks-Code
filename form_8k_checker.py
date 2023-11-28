@@ -40,8 +40,6 @@ SEC_HEADERS = {
         '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     )
 }
-DATE_PATTERN = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
-
 
 # Show me the logs
 logging.basicConfig(level=logging.INFO)
