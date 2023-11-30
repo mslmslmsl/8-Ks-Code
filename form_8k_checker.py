@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 import requests
 
 # Constants
-TESTING = False
+TESTING = True
 ITEM = "5.02" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
@@ -42,16 +42,26 @@ SEC_HEADERS = {
 }
 
 # Show me the logs
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S',
+    force=True
+)
 
 
 def get_sec_url(index: int) -> str:
-    """Return the URL for the relevant page of the 'latest filings' site"""
+    """Return the URL for the relevant page of the 'latest filings' site."""
     return (
         "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent"
         "&datea=&dateb=&company=&type=8-k&SIC=&State=&Country=&CIK=&owner="
         f"include&accno=&start={index}&count={FILINGS_PER_PAGE}"
     )
+
+
+def get_full_github_path():
+    """Return full GitHub string for logs."""
+    return f"{REPO_OWNER}/{REPO_NAME}/{FILE_PATH}"
 
 
 def update_github_file(entries_to_file: str, current_sha: str) -> None:
@@ -74,12 +84,12 @@ def update_github_file(entries_to_file: str, current_sha: str) -> None:
 
     # Log the response
     if response.status_code == 200:
-        logging.info("Updated %s successfully.\n", FILE_PATH)
+        logging.info("Successfully updated %s.\n", get_full_github_path())
     elif response.status_code == 201:
-        logging.info("Created %s successfully.\n", FILE_PATH)
+        logging.info("Successfully created %s.\n", get_full_github_path())
     else:
         logging.error(
-            "Error interacting with %s. HTTP Status Code: %s, Response: %s\n",
+            "Error interacting with %s. HTTP Status Code: %s, Response: %s.\n",
             FILE_PATH,
             response.status_code,
             response.text
@@ -116,17 +126,17 @@ def get_filing_info(element: tuple) -> str:
     return f"|{company}|{date_time}|{full_url}|\n"
 
 
-def get_newest_timestamp(text: str):
+def get_oldest_timestamp(text: str):
     """Return the timestamp fo the first filing on the page"""
 
     pattern = re.compile(r'\d{4}-\d{2}-\d{2}\d{2}:\d{2}:\d{2}')
-    ugly_newest_on_page_string = pattern.findall(text)[0]
-    newest_on_page_obj = datetime.strptime(
-        ugly_newest_on_page_string,
+    ugly_oldest_on_page_string = pattern.findall(text)[0]
+    oldest_on_page_obj = datetime.strptime(
+        ugly_oldest_on_page_string,
         "%Y-%m-%d%H:%M:%S"
     )
-    newest_on_page_string = newest_on_page_obj.strftime("%Y-%m-%d %H:%M:%S")
-    return newest_on_page_string
+    oldest_on_page_string = oldest_on_page_obj.strftime("%Y-%m-%d %H:%M:%S")
+    return oldest_on_page_string
 
 
 def get_8ks(last_checked_datetime_string: str) -> str:
@@ -165,7 +175,6 @@ def get_8ks(last_checked_datetime_string: str) -> str:
             # Find all <tr> elements, each of which is a filing
             tr_elements = soup.find_all('tr')
 
-            newest_filing_on_page = ''
             tr_elements_with_item = []
 
             # Loop through all the rows on the page
@@ -174,20 +183,19 @@ def get_8ks(last_checked_datetime_string: str) -> str:
 
                 # Do stuff if we find a filing row (has "Current report")
                 if "Current report" in text:
-                    # Save the timestamp for the first filing on the pae
-                    if not newest_filing_on_page:
-                        newest_filing_on_page = get_newest_timestamp(text)
+                    # Save the timestamp for the last filing on the page
+                    oldest_filing_on_page = get_oldest_timestamp(text)
                     # If the filing has our item, save it for processing
                     if ITEM in text:
                         tr_elements_with_item.append((prev_tr, current_tr))
 
-            # For each filin wiht our item, extract co name, timestamp, link
+            # For each filing with our item, extract name, timestamp, link
             for tr_element in tr_elements_with_item:
                 relevant_filings += get_filing_info(tr_element)
 
             # Break loop if we have already reviewed the page
-            if last_checked_datetime_string >= newest_filing_on_page:
-                logging.info("Done extracting new data from the SEC pages.")
+            if last_checked_datetime_string >= oldest_filing_on_page:
+                logging.info("Done extracting forms filed since last check.")
                 break
 
             # Break loop if on the last page (no 'next page' button)
@@ -256,7 +264,7 @@ def get_exisiting_data() -> tuple:
 
     except requests.exceptions.RequestException as exception:
         logging.error(
-            "An error occurred during the request: %s", str(exception)
+            "An error occurred during the request: %s.", str(exception)
         )
         return None, None, '1970-01-01 00:00:00'
 
@@ -289,11 +297,7 @@ def main():
 
     # Get existing filings as a list of strings (one filing per string)
     # If there are existing entries, get the sha (needed to update a file)
-    logging.info(
-        "Retrieving existing data from %s/%s.",
-        REPO_NAME,
-        FILE_PATH
-    )
+    logging.info("Retrieving existing data from %s.", get_full_github_path())
     existing_entries_list, current_sha, latest_checked_datetime_string = \
         get_exisiting_data()
 
@@ -312,7 +316,7 @@ def main():
     )
 
     # Save the filings to GitHub (by either creating or updating the file)
-    logging.info("Saving new filings to %s.", FILE_PATH)
+    logging.info("Saving new filings to %s.", get_full_github_path())
     update_github_file(all_entries_string, current_sha)
 
 
