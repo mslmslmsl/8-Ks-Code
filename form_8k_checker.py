@@ -41,6 +41,7 @@ SEC_HEADERS = {
     )
 }
 
+
 # Show me the logs
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -289,7 +290,44 @@ def get_final_string(new_entries: list, old_entries: list) -> str:
     else:
         final_list += new_entries
 
+    # If there're new entries, create a GitHub issue (for email notification)
+    if len(final_list) > len(old_entries):
+        create_github_issue()
+
     return '\n'.join(final_list)
+
+
+def create_github_issue():
+    """Create an issue in the GitHub repo to trigger an email notification."""
+
+    logging.info("Creating GitHub issue in %s.", get_full_github_path())
+
+    # Create the issue
+    payload = {
+        "title": "List of 8-Ks updated",
+        "body": (
+            "List of 8-Ks updated -- see [here]"
+            f"(https://www.github.com/{REPO_OWNER}/{REPO_NAME}/"
+            f"blob/main/{FILE_PATH})."
+        ),
+        "labels": ["Form 8-Ks"]
+    }
+    response = requests.post(
+        f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues",
+        headers=GITHUB_HEADERS,
+        json=payload,
+        timeout=10
+    )
+
+    # Log the response
+    if response.status_code == 201:
+        logging.info("Successfully created issue.")
+    else:
+        logging.error(
+            "Error creating issue. HTTP Status Code: %s, Response: %s.",
+            response.status_code,
+            response.text
+        )
 
 
 def main():
