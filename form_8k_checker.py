@@ -11,7 +11,7 @@ import requests
 
 # Constants
 TESTING = True
-ITEM = "5.02" if TESTING else "1.05"
+ITEM = "1.01" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
@@ -25,8 +25,8 @@ GITHUB_API_URL = (
 HEADING = (
     f"# List of Form 8-Ks with item {ITEM}\n"
     f"Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    "|Company|Timestamp|Link|\n"
-    "|---|---|---|\n"
+    "|Form|Company|Timestamp|Link|\n"
+    "|---|---|---|---|\n"
 )
 GITHUB_HEADERS = {
     "Authorization": f"token {GITHUB_TOKEN}",
@@ -123,8 +123,13 @@ def get_filing_info(element: tuple) -> str:
     html_link = soup.find('a', string='[html]')
     full_url = f"[link](https://www.sec.gov{html_link.get('href')})"
 
+    form_type = soup.find(
+        'td', {'nowrap': 'nowrap'},
+        string=re.compile(r'8-K(/A)?')
+    ).get_text()
+
     # Return a string with the data
-    return f"|{company}|{date_time}|{full_url}|\n"
+    return f"|{form_type}|{company}|{date_time}|{full_url}|\n"
 
 
 def get_oldest_timestamp(text: str):
@@ -278,10 +283,10 @@ def get_final_string(new_entries: list, old_entries: list) -> str:
 
     # If there are existing filings, combine new and old lists
     if old_entries:
-        cutoff_timestamp = old_entries[0].split('|')[2]
+        cutoff_timestamp = old_entries[0].split('|')[3]
         for entry in new_entries:
             # Only add new entries that are more recent than the newest old one
-            if entry.split('|')[2] > cutoff_timestamp:
+            if entry.split('|')[3] > cutoff_timestamp:
                 final_list.append(entry)
             else:
                 break
@@ -291,7 +296,12 @@ def get_final_string(new_entries: list, old_entries: list) -> str:
         final_list += new_entries
 
     # If there're new entries, create a GitHub issue (for email notification)
-    if len(final_list) > len(old_entries):
+    if old_entries is None:
+        old_entries_length = 0
+    else:
+        old_entries_length = len(old_entries)
+    
+    if len(final_list) > old_entries_length:
         create_github_issue()
 
     return '\n'.join(final_list)
