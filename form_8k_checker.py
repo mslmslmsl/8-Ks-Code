@@ -11,7 +11,7 @@ import requests
 
 # Constants
 TESTING = True
-ITEM = "5.02" if TESTING else "1.05"
+ITEM = "1.01" if TESTING else "1.05"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
@@ -25,8 +25,8 @@ GITHUB_API_URL = (
 HEADING = (
     f"# List of Form 8-Ks with item {ITEM}\n"
     f"Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    "|Company|Timestamp|Link|\n"
-    "|---|---|---|\n"
+    "|Form|Company|Timestamp|Link|\n"
+    "|---|---|---|---|\n"
 )
 GITHUB_HEADERS = {
     "Authorization": f"token {GITHUB_TOKEN}",
@@ -52,7 +52,7 @@ logging.basicConfig(
 
 
 def get_sec_url(index: int) -> str:
-    """Return the URL for the relevant page of the 'latest filings' site."""
+    """Return the URL for the relevant 'latest filings' page."""
     return (
         "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent"
         "&datea=&dateb=&company=&type=8-k&SIC=&State=&Country=&CIK=&owner="
@@ -123,12 +123,17 @@ def get_filing_info(element: tuple) -> str:
     html_link = soup.find('a', string='[html]')
     full_url = f"[link](https://www.sec.gov{html_link.get('href')})"
 
+    form_type = soup.find(
+        'td', {'nowrap': 'nowrap'},
+        string=re.compile(r'8-K(/A)?')
+    ).get_text() or ''
+
     # Return a string with the data
-    return f"|{company}|{date_time}|{full_url}|\n"
+    return f"|{form_type}|{company}|{date_time}|{full_url}|\n"
 
 
 def get_oldest_timestamp(text: str):
-    """Return the timestamp fo the first filing on the page"""
+    """Return the timestamp of the first filing on the page"""
 
     pattern = re.compile(r'\d{4}-\d{2}-\d{2}\d{2}:\d{2}:\d{2}')
     ugly_oldest_on_page_string = pattern.findall(text)[0]
@@ -273,25 +278,18 @@ def get_exisiting_data() -> tuple:
 def get_final_string(new_entries: list, old_entries: list) -> str:
     """Create the final str of filings; combine new and old lists if needed"""
 
-    # Define variable to store the final list of filings
-    final_list = []
-
-    # If there are existing filings, combine new and old lists
-    if old_entries:
-        cutoff_timestamp = old_entries[0].split('|')[2]
-        for entry in new_entries:
-            # Only add new entries that are more recent than the newest old one
-            if entry.split('|')[2] > cutoff_timestamp:
-                final_list.append(entry)
-            else:
-                break
-        final_list += old_entries
     # If there are no existing filings, then the full list is just the new list
+    if not old_entries:
+        final_list = new_entries
     else:
-        final_list += new_entries
+        cutoff = old_entries[0].split('|')[3]
+        final_list = [
+            entry for entry in new_entries if entry.split('|')[3] > cutoff
+        ]
+        final_list += old_entries
 
-    # If there're new entries, create a GitHub issue (for email notification)
-    if len(final_list) > len(old_entries):
+    # If there are new entries, create a GitHub issue (for email notification)
+    if len(final_list) > len(old_entries or []):
         create_github_issue()
 
     return '\n'.join(final_list)
