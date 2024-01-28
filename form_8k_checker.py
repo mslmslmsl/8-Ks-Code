@@ -126,7 +126,7 @@ def get_filing_info(element: tuple) -> str:
     form_type = soup.find(
         'td', {'nowrap': 'nowrap'},
         string=re.compile(r'8-K(/A)?')
-    ).get_text()
+    ).get_text() or ''
 
     # Return a string with the data
     return f"|{form_type}|{company}|{date_time}|{full_url}|\n"
