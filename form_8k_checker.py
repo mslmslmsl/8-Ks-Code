@@ -278,30 +278,18 @@ def get_exisiting_data() -> tuple:
 def get_final_string(new_entries: list, old_entries: list) -> str:
     """Create the final str of filings; combine new and old lists if needed"""
 
-    # Define variable to store the final list of filings
-    final_list = []
-
-    # If there are existing filings, combine new and old lists
-    if old_entries:
-        cutoff_timestamp = old_entries[0].split('|')[3]
-        for entry in new_entries:
-            # Only add new entries that are more recent than the newest old one
-            if entry.split('|')[3] > cutoff_timestamp:
-                final_list.append(entry)
-            else:
-                break
-        final_list += old_entries
     # If there are no existing filings, then the full list is just the new list
+    if not old_entries:
+        final_list = new_entries
     else:
-        final_list += new_entries
+        cutoff = old_entries[0].split('|')[3]
+        final_list = [
+            entry for entry in new_entries if entry.split('|')[3] > cutoff
+        ]
+        final_list += old_entries
 
-    # If there're new entries, create a GitHub issue (for email notification)
-    if old_entries is None:
-        old_entries_length = 0
-    else:
-        old_entries_length = len(old_entries)
-    
-    if len(final_list) > old_entries_length:
+    # If there are new entries, create a GitHub issue (for email notification)
+    if len(final_list) > len(old_entries or []):
         create_github_issue()
 
     return '\n'.join(final_list)
