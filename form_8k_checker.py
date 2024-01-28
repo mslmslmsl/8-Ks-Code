@@ -52,7 +52,7 @@ logging.basicConfig(
 
 
 def get_sec_url(index: int) -> str:
-    """Return the URL for the relevant page of the 'latest filings' site."""
+    """Return the URL for the relevant 'latest filings' page."""
     return (
         "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent"
         "&datea=&dateb=&company=&type=8-k&SIC=&State=&Country=&CIK=&owner="
@@ -133,7 +133,7 @@ def get_filing_info(element: tuple) -> str:
 
 
 def get_oldest_timestamp(text: str):
-    """Return the timestamp fo the first filing on the page"""
+    """Return the timestamp of the first filing on the page"""
 
     pattern = re.compile(r'\d{4}-\d{2}-\d{2}\d{2}:\d{2}:\d{2}')
     ugly_oldest_on_page_string = pattern.findall(text)[0]
