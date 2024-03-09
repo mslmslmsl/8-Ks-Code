@@ -26,10 +26,11 @@ GITHUB_API_URL = (
     f"https://api.github.com/repos/{REPO_OWNER}/"
     f"{REPO_NAME}/contents/{FILE_PATH}"
 )
+MATERIAL = "Material*" if INFER_MATERIALITY else "Material"
 HEADING = (
     f"# List of Form 8-Ks with item {ITEM}\n"
     f"Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    "|Form|Company|Timestamp|Material*|Link|\n"
+    f"|Form|Company|Timestamp|{MATERIAL}|Link|\n"
     "|---|---|---|:---:|---|\n"
 )
 FOOTER = (
@@ -154,7 +155,7 @@ def update_github_file(entries_to_file: str, current_sha: str) -> None:
     # Set the content of the file to HEADING plus the entries
     full_content = HEADING
     full_content += entries_to_file if entries_to_file else ''
-    full_content += FOOTER
+    full_content += FOOTER if INFER_MATERIALITY else ''
 
     # Upload to GitHub
     message = f"Update {FILE_PATH}" if current_sha else f"Create {FILE_PATH}"
