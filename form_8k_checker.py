@@ -8,10 +8,14 @@ import base64
 
 from bs4 import BeautifulSoup
 import requests
+from openai import OpenAI
+import tiktoken
 
 # Constants
-TESTING = True
+TESTING = False
+INFER_MATERIALITY = True
 ITEM = "1.01" if TESTING else "1.05"
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
@@ -25,8 +29,11 @@ GITHUB_API_URL = (
 HEADING = (
     f"# List of Form 8-Ks with item {ITEM}\n"
     f"Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    "|Form|Company|Timestamp|Link|\n"
-    "|---|---|---|---|\n"
+    "|Form|Company|Timestamp|Material*|Link|\n"
+    "|---|---|---|---|---|\n"
+)
+FOOTER = (
+    "\n\n\\* Materiality is inferred using OpenAI and may be inaccurate.\n"
 )
 GITHUB_HEADERS = {
     "Authorization": f"token {GITHUB_TOKEN}",
@@ -40,15 +47,93 @@ SEC_HEADERS = {
         '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     )
 }
+OAI_INSTRUCTIONS = """
+To properly respond to this prompt, you need to examine item 1.05 of the text
+provided and identify any explicit statements made by the company regarding the
+materiality of the cybersecurity incident mentioned in that section. You should
+focus solely on direct statements made by the company regarding the incident's
+materiality. If the company explicitly states that the incident is material,
+your response should be 'True'. If the company explicitly states that the
+incident is not material or doesn't otherwise cleary state it is material, your
+response should be 'False'. Do not infer materiality based on the details of
+the incident; only consider direct statements made by the company within item
+1.05 of the text.
+""".replace('\n', ' ').strip() + "\n---\n"
 
 
-# Show me the logs
+# Set logging configuration
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S',
     force=True
 )
+
+
+def trim_to_max_tokens(text, max_tokens=4096):
+    """Trim OAI prompt to the maximum number of tokens."""
+
+    # Get the encoding for the specified model
+    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+
+    # Encode the text into tokens
+    text_encoding = encoding.encode(text)
+
+    # Get the number of tokens in the encoded text
+    num_tokens = len(text_encoding)
+
+    # If the number of tokens exceeds the maximum allowed,
+    # trim the encoded text to the maximum number of tokens
+    if num_tokens > max_tokens:
+        text_encoding = text_encoding[:max_tokens]
+
+        # Decode the trimmed encoding back into text
+        text = encoding.decode(text_encoding)
+
+    # Return the trimmed text
+    return text
+
+
+def is_the_incident_material(filing_text) -> str:
+    """Use OAI to infer if the incident is material."""
+
+    # Initialize the OAI client with your API key (will need to set)
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+    # Trim the prompt to the maximum number of tokens allowed by OAI
+    full_prompt = trim_to_max_tokens(OAI_INSTRUCTIONS+filing_text)
+
+    # Define the message and send to the OAI API
+    message = [{"role": "user", "content": full_prompt}]
+    response = client.chat.completions.create(
+        messages=message,
+        model="gpt-3.5-turbo",
+    )
+
+    # Extract the content of the first message in the response
+    is_material = response.choices[0].message.content
+
+    # Return "✓" if the incident is material, etc.
+    return {"True": "✓", "False": ""}.get(is_material, "?")
+
+
+def extract_text(url) -> str:
+    """Extracts and trims the text from the filing."""
+
+    # Retrieve and parse the filing text
+    response = requests.get(url, headers=SEC_HEADERS, timeout=10)
+    soup = BeautifulSoup(response.content, "lxml")
+    text = soup.get_text()
+
+    # Remove text above and below the relevant section
+    start_substring = "of the Exchange Act"
+    end_substring = "SIGNATURES"
+    start_index = text.lower().find(start_substring.lower())
+    end_index = text.lower().rfind(end_substring.lower())
+    text = text[start_index + len(start_substring):end_index]
+
+    # Return the extracted text
+    return text
 
 
 def get_sec_url(index: int) -> str:
@@ -71,6 +156,7 @@ def update_github_file(entries_to_file: str, current_sha: str) -> None:
     # Set the content of the file to HEADING plus the entries
     full_content = HEADING
     full_content += entries_to_file if entries_to_file else ''
+    full_content += FOOTER
 
     # Upload to GitHub
     message = f"Update {FILE_PATH}" if current_sha else f"Create {FILE_PATH}"
@@ -121,15 +207,24 @@ def get_filing_info(element: tuple) -> str:
 
     # Get the URL to the actual form filing
     html_link = soup.find('a', string='[html]')
-    full_url = f"[link](https://www.sec.gov{html_link.get('href')})"
+    url = f"https://www.sec.gov{html_link.get('href')}"
 
+    # Determine if the incident is material
+    if INFER_MATERIALITY:
+        text_url = url.replace("-index.htm", ".txt")
+        text_of_the_filing = extract_text(text_url)
+        is_material = is_the_incident_material(text_of_the_filing)
+    else:
+        is_material = "?"
+
+    # Get the form type (8-K or 8-K/A)
     form_type = soup.find(
         'td', {'nowrap': 'nowrap'},
         string=re.compile(r'8-K(/A)?')
     ).get_text() or ''
 
-    # Return a string with the data
-    return f"|{form_type}|{company}|{date_time}|{full_url}|\n"
+    # Return the final row (incl. link)
+    return f"|{form_type}|{company}|{date_time}|{is_material}|[link]({url})|\n"
 
 
 def get_oldest_timestamp(text: str):
@@ -251,7 +346,10 @@ def get_exisiting_data() -> tuple:
             current_content_as_strings = current_content.splitlines()
 
             # Isolate the form 8-K lines
-            bottom_half = current_content_as_strings[HEADING.count('\n'):]
+            filing_rows = []
+            for line in current_content_as_strings:
+                if line.startswith('|8-K'):
+                    filing_rows.append(line)
 
             # Get the datetime of the last check -- this is to avoid
             # analyzing SEC pages that we've already reviewed
@@ -263,7 +361,7 @@ def get_exisiting_data() -> tuple:
             else:
                 last_checked = '1970-01-01 00:00:00'
 
-            return bottom_half, current_sha, last_checked
+            return filing_rows, current_sha, last_checked
 
         logging.info("%s doesn't exist, so creating it.", FILE_PATH)
         return None, None, '1970-01-01 00:00:00'

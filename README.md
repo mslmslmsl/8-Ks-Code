@@ -4,6 +4,8 @@
 
 The SEC Form 8-K Indexer is a Python script that automates the extraction of Form 8-K filings from the U.S. Securities and Exchange Commission (SEC) ["Latest Filings Received and Processed at the SEC" page](https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent). It collects 8-K filings that include the specified "item" provided and updates a GitHub repo with information about the 8-Ks.
 
+In addition, the script uses OpenAI to analyze the content of filings and infer whether the reporting companies consider the reported cybersecurity incidents to be material.
+
 ## Usage Instructions
 
 The "Latest Filings" page on the SEC website displays forms filed with the SEC in the **past three business days**. To ensure that the script reviews all filings, you need to run the script at least **twice a week**. For example:
@@ -22,7 +24,9 @@ Before running the script, ensure you have Python 3.x and the necessary dependen
 
 Also, update the following constants in the script:
 
-- `TESTING`: Set to true to test the script with a more common item and a private repo.
+- `TESTING`: Set to True to test the script with a more common item and a private repo.
 - `ITEM`: Identify the 8-Ks to index by specifying the item that the script looks for in the 8-Ks (the default is 1.05 - Material Cybersecurity Incidents).
 - `GITHUB_TOKEN`, `REPO_OWNER`, and `REPO_NAME`: Configure your GitHub repo information and include a GitHub token.
 - `FILE_PATH`: Specify the filename within the repo where the Form 8-K list will be stored.
+- `INFER_MATERIALITY`: Set to True to enable the materiality-inference feature.
+- `OPENAI_API_KEY`: Specify your OpenAI API key if you enable the materiality-inference feature.
