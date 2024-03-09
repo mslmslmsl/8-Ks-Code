@@ -30,7 +30,7 @@ HEADING = (
     f"# List of Form 8-Ks with item {ITEM}\n"
     f"Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     "|Form|Company|Timestamp|Material*|Link|\n"
-    "|---|---|---|---|---|\n"
+    "|---|---|---|:---:|---|\n"
 )
 FOOTER = (
     "\n\n\\* Materiality is inferred using OpenAI and may be inaccurate.\n"
