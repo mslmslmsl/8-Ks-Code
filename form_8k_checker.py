@@ -47,18 +47,16 @@ SEC_HEADERS = {
         '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     )
 }
-OAI_INSTRUCTIONS = """
-To properly respond to this prompt, you need to examine item 1.05 of the text
-provided and identify any explicit statements made by the company regarding the
-materiality of the cybersecurity incident mentioned in that section. You should
-focus solely on direct statements made by the company regarding the incident's
-materiality. If the company explicitly states that the incident is material,
-your response should be 'True'. If the company explicitly states that the
-incident is not material or doesn't otherwise cleary state it is material, your
-response should be 'False'. Do not infer materiality based on the details of
-the incident; only consider direct statements made by the company within item
-1.05 of the text.
-""".replace('\n', ' ').strip() + "\n---\n"
+OAI_INSTRUCTIONS = (
+    "[INSTRUCTIONS]\n"
+    "Carefully review item 1.05 of the provided text. Identify explicit "
+    "statements by the company regarding the materiality of the "
+    "cybersecurity incident mentioned. Respond 'True' if the company "
+    "explicitly states the incident is material; otherwise, respond "
+    "'False'. Do not infer materiality; focus solely on direct "
+    "statements within item 1.05.\n"
+    "[TEXT]\n"
+)
 
 
 # Set logging configuration
