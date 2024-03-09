@@ -6,6 +6,8 @@ The SEC Form 8-K Indexer is a Python script that automates the extraction of For
 
 In addition, the script uses OpenAI to analyze the content of filings and infer whether the reporting companies consider the reported cybersecurity incidents to be material.
 
+An example of what the ouput looks like is available [here](https://github.com/mslmslmsl/8-Ks/blob/main/8-Ks.md).
+
 ## Usage Instructions
 
 The "Latest Filings" page on the SEC website displays forms filed with the SEC in the **past three business days**. To ensure that the script reviews all filings, you need to run the script at least **twice a week**. For example:
