@@ -96,7 +96,7 @@ def is_the_incident_material(filing_text) -> str:
     """Use OAI to infer if the incident is material."""
 
     # Initialize the OAI client with your API key (will need to set)
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    client = OpenAI(api_key=OPENAI_API_KEY)
 
     # Trim the prompt to the maximum number of tokens allowed by OAI
     full_prompt = trim_to_max_tokens(OAI_INSTRUCTIONS+filing_text)
