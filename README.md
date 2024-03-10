@@ -4,7 +4,7 @@
 
 The SEC Form 8-K Indexer is a Python script that automates the extraction of Form 8-K filings from the U.S. Securities and Exchange Commission (SEC) ["Latest Filings Received and Processed at the SEC" page](https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent). It collects 8-K filings that include the specified "item" provided and updates a GitHub repo with information about the 8-Ks.
 
-In addition, the script uses OpenAI to analyze the content of filings and infer whether the reporting companies consider the reported cybersecurity incidents to be material.
+In addition, the script uses OpenAI to analyze the content of filings and infer whether the reporting companies consider the reported cybersecurity incidents to be material. The OpenAI prompt can be found in `instructions.txt`.
 
 An example of the ouput is available [here](https://github.com/8-K-bot/8-Ks/blob/main/8-Ks.md).
 
