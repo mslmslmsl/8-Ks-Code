@@ -29,8 +29,7 @@ GITHUB_API_URL = (
     f"{REPO_NAME}/contents/{FILE_PATH}"
 )
 MATERIAL = "Material*" if INFER_MATERIALITY else "Material"
-HEADING = f"""
-# List of Form 8-Ks with item {ITEM}
+HEADING = f"""# List of Form 8-Ks with item {ITEM}
 Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 |Form|Company|Timestamp|{MATERIAL}|Link|
