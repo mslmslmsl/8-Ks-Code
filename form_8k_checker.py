@@ -12,7 +12,7 @@ from openai import OpenAI
 import tiktoken
 
 # Constants and global variables
-TESTING = False
+TESTING = True
 DETERMINE_MATERIALITY = True
 ITEM = "1.01" if TESTING else "1.05"
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -53,12 +53,15 @@ SEC_HEADERS = {
 
 
 # Set logging configuration
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S',
-    force=True
-)
+if TESTING:
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)-8s %(message)s',
+        level=logging.INFO,
+        datefmt='%Y-%m-%d %H:%M:%S',
+        force=True
+    )
 
 
 def trim_to_max_tokens(text, max_tokens=4096):
@@ -110,26 +113,39 @@ def is_the_incident_material(filing_text) -> str:
     is_material = response.choices[0].message.content
 
     # Return "✓" if the incident is material, etc.
-    return {"True": "✓", "False": ""}.get(is_material, "?")
+    return {"True": "✓", "False": "", "Unclear": "?"}.get(is_material, "?")
 
 
 def extract_text(url) -> str:
     """Extracts and trims the text from the filing."""
 
     # Retrieve and parse the filing text
-    response = requests.get(url, headers=SEC_HEADERS, timeout=10)
-    soup = BeautifulSoup(response.content, "lxml")
+    response = requests.get(url, headers=SEC_HEADERS, timeout=10, stream=True)
+
+    # Responses can be large, so we stream it and collect 1 KB at a time up to
+    # a max of 0.5 MB. This is helpful for memory issues for large responses,
+    # especially since the items generally appear near the top of the filing.
+    mb = 0.5 * 1024 * 1024  # 0.5 MB
+    content = b''
+    for chunk in response.iter_content(chunk_size=1024):
+        content += chunk
+        if len(content) >= mb:
+            break
+    soup = BeautifulSoup(content, "lxml")
     text = soup.get_text()
 
     # Remove text above and below the relevant section
-    start_substring = "of the Exchange Act"
-    end_substring = "SIGNATURES"
-    start_index = text.lower().find(start_substring.lower())
-    end_index = text.lower().rfind(end_substring.lower())
-    text = text[start_index + len(start_substring):end_index]
+    # Hopefully this regex captures all real sections and not too much else
+    start_substring = r"(?i)item[^>]{0,8}%s" % ITEM
+    start_match = re.search(start_substring, text, re.IGNORECASE)
+    start_index = start_match.start() if start_match else -1
+
+    end_substring = r"forward[- ]?looking[- ]?statement"
+    end_match = re.search(end_substring, text, re.IGNORECASE)
+    end_index = end_match.start() if end_match else -1
 
     # Return the extracted text
-    return text
+    return text[start_index:end_index]
 
 
 def get_sec_url(index: int) -> str:
@@ -186,7 +202,6 @@ def get_filing_info(element: tuple, last_checked: str) -> str:
     # Get the company name (assume that an <a> tag always exists in element[0])
     company = soup.find('a').get_text()
     company = re.sub(r'\([^)]*\) \(Filer\)\s*', '', company).strip()
-    logging.info("Processing filing for %s.", company)
 
     soup = BeautifulSoup(str(element[1]), 'html.parser')
 
@@ -205,10 +220,12 @@ def get_filing_info(element: tuple, last_checked: str) -> str:
     # already been analyzed, so we can skip it (and avoid OAI requests)
     if date_time <= last_checked:
         logging.info(
-            "Filing for %s is older than the last check, so we can skip it.",
+            "Skipping filing for %s as it's older than the last check.",
             company
         )
         return ''
+
+    logging.info("Adding filing for %s.", company)
 
     # Get the URL to the actual form filing
     html_link = soup.find('a', string='[html]')
