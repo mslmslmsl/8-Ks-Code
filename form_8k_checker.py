@@ -94,12 +94,13 @@ def is_the_incident_material(filing_text) -> str:
     # Set full prompt
     with open('instructions.txt', 'r', encoding='utf-8') as file:
         oai_instructions = file.read()
+    full_prompt = oai_instructions + filing_text
 
     # Trim prompt to the maximum number of tokens allowed by OAI
-    full_prompt = trim_to_max_tokens(oai_instructions+filing_text)
+    trimmed_prompt = trim_to_max_tokens(full_prompt)
 
     # Define the message and send to the OAI API
-    message = [{"role": "user", "content": full_prompt}]
+    message = [{"role": "user", "content": trimmed_prompt}]
     response = client.chat.completions.create(
         messages=message,
         model="gpt-3.5-turbo",
@@ -178,18 +179,18 @@ def update_github_file(entries_to_file: str, current_sha: str) -> None:
         )
 
 
-def get_filing_info(element: tuple) -> str:
+def get_filing_info(element: tuple, last_checked: str) -> str:
     """Extract information from Form 8-K filing HTML element."""
     soup = BeautifulSoup(str(element[0]), 'html.parser')
 
     # Get the company name (assume that an <a> tag always exists in element[0])
     company = soup.find('a').get_text()
     company = re.sub(r'\([^)]*\) \(Filer\)\s*', '', company).strip()
+    logging.info("Processing filing for %s.", company)
 
     soup = BeautifulSoup(str(element[1]), 'html.parser')
 
-    # Get the timestamp (and assume that a <td> tag with a <br> tag always
-    # exists in element[1])
+    # Get timestamp (assume a <td> with a <br> always exists in element[1])
     date_time = (
         soup.find(
             lambda tag: tag.name == 'td' and tag.find('br'),
@@ -199,6 +200,15 @@ def get_filing_info(element: tuple) -> str:
     )
     date_time_obj = datetime.strptime(date_time, '%Y-%m-%d%H:%M:%S')
     date_time = date_time_obj.strftime("%Y-%m-%d %H:%M:%S")
+
+    # If the filing is older than the last checked time, then it's presumably
+    # already been analyzed, so we can skip it (and avoid OAI requests)
+    if date_time <= last_checked:
+        logging.info(
+            "Filing for %s is older than the last check, so we can skip it.",
+            company
+        )
+        return ''
 
     # Get the URL to the actual form filing
     html_link = soup.find('a', string='[html]')
@@ -285,9 +295,12 @@ def get_8ks(last_checked_datetime_string: str) -> str:
                     if ITEM in text:
                         tr_elements_with_item.append((prev_tr, current_tr))
 
-            # For each filing with our item, extract name, timestamp, link
+            # For each filing with our item, extract data if it's new
             for tr_element in tr_elements_with_item:
-                relevant_filings += get_filing_info(tr_element)
+                relevant_filings += get_filing_info(
+                    tr_element,
+                    last_checked_datetime_string
+                )
 
             # Break loop if we have already reviewed the page
             if last_checked_datetime_string >= oldest_filing_on_page:
@@ -445,7 +458,7 @@ def main():
     )
 
     # Save the filings to GitHub (by either creating or updating the file)
-    logging.info("Saving new filings to %s.", get_full_github_path())
+    logging.info("Updating %s.", get_full_github_path())
     update_github_file(all_entries_string, current_sha)
 
 
