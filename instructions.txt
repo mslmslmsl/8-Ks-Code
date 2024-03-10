@@ -1,0 +1,3 @@
+[INSTRUCTIONS]
+Carefully review item 1.05 of the provided text. Identify explicit statements by the company regarding the materiality of the cybersecurity incident mentioned. Respond 'True' if the company explicitly states the incident is material or if it indicates that the incident has had or is reasonably likely to have any material impact on the company, regardless of its nature. Return 'False' if the statement is unclear or if the company states that it is still evaluating or assessing the materiality of the incident. Do not infer materiality; focus solely on direct statements within item 1.05.
+[TEXT]

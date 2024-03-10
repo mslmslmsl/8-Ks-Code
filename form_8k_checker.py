@@ -11,15 +11,17 @@ import requests
 from openai import OpenAI
 import tiktoken
 
-# Constants
+# Constants and global variables
 TESTING = False
 INFER_MATERIALITY = True
 ITEM = "1.01" if TESTING else "1.05"
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if OPENAI_API_KEY is None:
+    INFER_MATERIALITY = False
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
-REPO_OWNER = "mslmslmsl"
+REPO_OWNER = "8-K-bot"
 REPO_NAME = "TEST" if TESTING else "8-Ks"
 FILE_PATH = "8-Ks.md"
 GITHUB_API_URL = (
@@ -48,16 +50,6 @@ SEC_HEADERS = {
         '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     )
 }
-OAI_INSTRUCTIONS = (
-    "[INSTRUCTIONS]\n"
-    "Carefully review item 1.05 of the provided text. Identify explicit "
-    "statements by the company regarding the materiality of the "
-    "cybersecurity incident mentioned. Respond 'True' if the company "
-    "explicitly states the incident is material; otherwise, respond "
-    "'False'. Do not infer materiality; focus solely on direct "
-    "statements within item 1.05.\n"
-    "[TEXT]\n"
-)
 
 
 # Set logging configuration
@@ -99,8 +91,12 @@ def is_the_incident_material(filing_text) -> str:
     # Initialize the OAI client with your API key (will need to set)
     client = OpenAI(api_key=OPENAI_API_KEY)
 
-    # Trim the prompt to the maximum number of tokens allowed by OAI
-    full_prompt = trim_to_max_tokens(OAI_INSTRUCTIONS+filing_text)
+    # Set full prompt
+    with open('instructions.txt', 'r', encoding='utf-8') as file:
+        oai_instructions = file.read()
+
+    # Trim prompt to the maximum number of tokens allowed by OAI
+    full_prompt = trim_to_max_tokens(oai_instructions+filing_text)
 
     # Define the message and send to the OAI API
     message = [{"role": "user", "content": full_prompt}]
