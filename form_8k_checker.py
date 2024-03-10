@@ -29,12 +29,13 @@ GITHUB_API_URL = (
     f"{REPO_NAME}/contents/{FILE_PATH}"
 )
 MATERIAL = "Material*" if INFER_MATERIALITY else "Material"
-HEADING = (
-    f"# List of Form 8-Ks with item {ITEM}\n"
-    f"Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    f"|Form|Company|Timestamp|{MATERIAL}|Link|\n"
-    "|---|---|---|:---:|---|\n"
-)
+HEADING = f"""
+# List of Form 8-Ks with item {ITEM}
+Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+|Form|Company|Timestamp|{MATERIAL}|Link|
+|---|---|---|:---:|---|
+"""
 FOOTER = (
     "\n\n\\* Materiality is inferred using OpenAI and may be inaccurate.\n"
 )
