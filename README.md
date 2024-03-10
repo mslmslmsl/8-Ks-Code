@@ -6,7 +6,7 @@ The SEC Form 8-K Indexer is a Python script that automates the extraction of For
 
 In addition, the script uses OpenAI to analyze the content of filings and infer whether the reporting companies consider the reported cybersecurity incidents to be material.
 
-An example of the ouput is available [here](https://github.com/mslmslmsl/8-Ks/blob/main/8-Ks.md).
+An example of the ouput is available [here](https://github.com/8-K-bot/8-Ks/blob/main/8-Ks.md).
 
 ## Usage Instructions
 
@@ -24,7 +24,7 @@ To automate the scanning of the 'Latest Filings' page, configure a cron job to r
 
 Before running the script, ensure you have Python 3.x and the necessary dependencies (install with `pip install -r requirements.txt`).
 
-Also, update the following constants in the script:
+Also, update the following constants and global variables in the script:
 
 - `TESTING`: Set to True to test the script with a more common item and a private repo.
 - `ITEM`: Identify the 8-Ks to index by specifying the item that the script looks for in the 8-Ks (the default is 1.05 - Material Cybersecurity Incidents).
