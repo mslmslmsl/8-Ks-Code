@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 import logging
 import base64
+from io import BytesIO
 
 from bs4 import BeautifulSoup
 import requests
@@ -12,7 +13,7 @@ from openai import OpenAI
 import tiktoken
 
 # Constants and global variables
-TESTING = True
+TESTING = False
 DETERMINE_MATERIALITY = True
 ITEM = "1.01" if TESTING else "1.05"
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -120,18 +121,26 @@ def extract_text(url) -> str:
     """Extracts and trims the text from the filing."""
 
     # Retrieve and parse the filing text
-    response = requests.get(url, headers=SEC_HEADERS, timeout=10, stream=True)
+    response = requests.get(url, headers=SEC_HEADERS, timeout=100, stream=True)
 
-    # Responses can be large, so we stream it and collect 1 KB at a time up to
-    # a max of 0.5 MB. This is helpful for memory issues for large responses,
-    # especially since the items generally appear near the top of the filing.
+    # Create a buffer to store the response
+    buffer = BytesIO()
+    bytes_received = 0
     mb = 0.5 * 1024 * 1024  # 0.5 MB
-    content = b''
+
+    # Responses can be large, so stream it 1 KB at a time up to A max of .5 MB
+    # This is helpful for memory issues for large responses, especially since
+    # the items generally appear near the top of the filing.
     for chunk in response.iter_content(chunk_size=1024):
-        content += chunk
-        if len(content) >= mb:
+        buffer.write(chunk)
+        bytes_received += len(chunk)
+        print(bytes_received)
+        if bytes_received >= mb:
             break
-    soup = BeautifulSoup(content, "lxml")
+
+    # Reset buffer position to start
+    buffer.seek(0)
+    soup = BeautifulSoup(buffer, "lxml")
     text = soup.get_text()
 
     # Remove text above and below the relevant section
@@ -140,7 +149,7 @@ def extract_text(url) -> str:
     start_match = re.search(start_substring, text, re.IGNORECASE)
     start_index = start_match.start() if start_match else -1
 
-    end_substring = r"forward[- ]?looking[- ]?statement"
+    end_substring = r"forward[- –]looking statement"
     end_match = re.search(end_substring, text, re.IGNORECASE)
     end_index = end_match.start() if end_match else -1
 
