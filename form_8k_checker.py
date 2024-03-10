@@ -13,11 +13,11 @@ import tiktoken
 
 # Constants and global variables
 TESTING = False
-INFER_MATERIALITY = True
+DETERMINE_MATERIALITY = True
 ITEM = "1.01" if TESTING else "1.05"
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if OPENAI_API_KEY is None:
-    INFER_MATERIALITY = False
+    DETERMINE_MATERIALITY = False
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 if GITHUB_TOKEN is None:
     raise ValueError("GitHub token not found. Set the GITHUB_TOKEN env var.")
@@ -28,7 +28,7 @@ GITHUB_API_URL = (
     f"https://api.github.com/repos/{REPO_OWNER}/"
     f"{REPO_NAME}/contents/{FILE_PATH}"
 )
-MATERIAL = "Material*" if INFER_MATERIALITY else "Material"
+MATERIAL = "Material*" if DETERMINE_MATERIALITY else "Material"
 HEADING = f"""# List of Form 8-Ks with item {ITEM}
 Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -36,7 +36,7 @@ Last checked {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 |---|---|---|:---:|---|
 """
 FOOTER = (
-    "\n\n\\* Materiality is inferred using OpenAI and may be inaccurate.\n"
+    "\n\n\\* Materiality is determined using OpenAI and may be inaccurate.\n"
 )
 GITHUB_HEADERS = {
     "Authorization": f"token {GITHUB_TOKEN}",
@@ -86,7 +86,7 @@ def trim_to_max_tokens(text, max_tokens=4096):
 
 
 def is_the_incident_material(filing_text) -> str:
-    """Use OAI to infer if the incident is material."""
+    """Use OAI to determine if the incident is material."""
 
     # Initialize the OAI client with your API key (will need to set)
     client = OpenAI(api_key=OPENAI_API_KEY)
@@ -151,7 +151,7 @@ def update_github_file(entries_to_file: str, current_sha: str) -> None:
     # Set the content of the file to HEADING plus the entries
     full_content = HEADING
     full_content += entries_to_file if entries_to_file else ''
-    full_content += FOOTER if INFER_MATERIALITY else ''
+    full_content += FOOTER if DETERMINE_MATERIALITY else ''
 
     # Upload to GitHub
     message = f"Update {FILE_PATH}" if current_sha else f"Create {FILE_PATH}"
@@ -205,7 +205,7 @@ def get_filing_info(element: tuple) -> str:
     url = f"https://www.sec.gov{html_link.get('href')}"
 
     # Determine if the incident is material
-    if INFER_MATERIALITY:
+    if DETERMINE_MATERIALITY:
         text_url = url.replace("-index.htm", ".txt")
         text_of_the_filing = extract_text(text_url)
         is_material = is_the_incident_material(text_of_the_filing)

@@ -4,9 +4,9 @@
 
 The SEC Form 8-K Indexer is a Python script that automates the extraction of Form 8-K filings from the U.S. Securities and Exchange Commission (SEC) ["Latest Filings Received and Processed at the SEC" page](https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent). It collects 8-K filings that include the specified "item" provided and updates a GitHub repo with information about the 8-Ks.
 
-In addition, the script uses OpenAI to analyze the content of filings and infer whether the reporting companies consider the reported cybersecurity incidents to be material. The OpenAI prompt can be found in `instructions.txt`.
+In addition, the script uses OpenAI to analyze the content of filings and determine whether the filing companies consider the reported cybersecurity incidents to be material. The OpenAI prompt can be found in `instructions.txt`.
 
-An example of the ouput is available [here](https://github.com/8-K-bot/8-Ks/blob/main/8-Ks.md).
+An example of the output is available [here](https://github.com/8-K-bot/8-Ks/blob/main/8-Ks.md).
 
 ## Usage Instructions
 
@@ -30,5 +30,5 @@ Also, update the following constants and global variables in the script:
 - `ITEM`: Identify the 8-Ks to index by specifying the item that the script looks for in the 8-Ks (the default is 1.05 - Material Cybersecurity Incidents).
 - `GITHUB_TOKEN`, `REPO_OWNER`, and `REPO_NAME`: Configure your GitHub repo information and include a GitHub token.
 - `FILE_PATH`: Specify the filename within the repo where the Form 8-K list will be stored.
-- `INFER_MATERIALITY`: Set to True to enable the materiality-inference feature.
-- `OPENAI_API_KEY`: Specify your OpenAI API key if you enable the materiality-inference feature.
+- `DETERMINE_MATERIALITY`: Set to True to use OpenAI to determine if a filing company thinks that the incident it experienced was material.
+- `OPENAI_API_KEY`: Specify your OpenAI API key if you enable the feature to determine whether an incident was material.
